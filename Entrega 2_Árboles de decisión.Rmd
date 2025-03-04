@@ -1,0 +1,264 @@
+---
+title: "Entrega 2. Árboles de decisión"
+author: 
+  - "Pablo Daniel Barillas Moreno, Carné No. 22193"
+  - "Mathew Cordero Aquino, Carné No. 22982"
+output:
+  html_document: default
+  pdf_document:
+    latex_engine: xelatex
+date: "2025-02-02"
+header-includes:
+   - \usepackage{fvextra}
+   - \DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,commandchars=\\\{\}}
+repository: "https://github.com/DanielBarillas/Proyecto-2_Entrega-2_MineriaDeDatos_Grupo-1.git"
+---
+
+### Enlace al Repositorio del proyecto 2 de minería de datos del Grupo #1
+[Repositorio en GitHub](https://github.com/DanielBarillas/Proyecto-2_Entrega-2_MineriaDeDatos_Grupo-1.git)
+
+### 0. Descargue los conjuntos de datos. 
+
+Para este punto, ya se ha realizado el proceso para descargar del sitio web: [House Prices - Advanced Regression Techniques](https://kaggle.com/competitions/house-prices-advanced-regression-techniques), la data de entrenamiento y la data de prueba, ambos extraídos desde la carpeta "house_prices_data/" en data frames llamados train_data (data de entrenamiento) y test_data (data de prueba), sin convertir automáticamente las variables categóricas en factores (stringsAsFactors = FALSE). Luego, se realiza una inspección inicial de train_data mediante tres funciones: head(train_data), que muestra las primeras filas del dataset; str(train_data), que despliega la estructura del data frame, incluyendo el tipo de cada variable; y summary(train_data), que proporciona un resumen estadístico de las variables numéricas y una descripción general de las categóricas.
+
+```{r}
+train_data <- read.csv("house_prices_data/train.csv", stringsAsFactors = FALSE)
+test_data <- read.csv("house_prices_data/test.csv", stringsAsFactors = FALSE)
+
+head(train_data)   # Muestra las primeras filas
+str(train_data)    # Muestra la estructura del dataset
+summary(train_data) # Resumen estadístico
+```
+
+### 1. Use los mismos conjuntos de entrenamiento y prueba que usó para los modelos de regresión lineal en la entrega anterior. 
+
+```{r}
+# Cargar librerías necesarias
+library(readr)
+library(dplyr)
+
+# Fijar semilla para reproducibilidad
+set.seed(42)
+
+# Cargar los conjuntos de datos
+train_set <- read_csv("house_prices_data/train.csv", show_col_types = FALSE)
+test_set <- read_csv("house_prices_data/test.csv", show_col_types = FALSE)
+
+# Verificar dimensiones
+cat("Dimensiones del conjunto de entrenamiento:", dim(train_set), "\n")
+cat("Dimensiones del conjunto de prueba:", dim(test_set), "\n")
+
+# Mostrar los primeros registros
+head(train_set)
+head(test_set)
+
+# Resumen estadístico de cada conjunto
+summary(train_set)
+summary(test_set)
+
+# Verificar los tipos de datos en cada conjunto
+str(train_set)
+str(test_set)
+```
+### 2. Elabore un árbol de regresión para predecir el precio de las casas usando todas las variables.
+
+```{r}
+# Cargar librerías necesarias
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(dplyr)
+library(ggplot2)
+
+# Cargar conjuntos de datos
+train_set <- read.csv("house_prices_data/train.csv", stringsAsFactors = TRUE)
+test_set <- read.csv("house_prices_data/test.csv", stringsAsFactors = TRUE)
+
+# Revisar estructura y resumen de los datos
+str(train_set)
+summary(train_set)
+
+# Eliminar la columna de Id (solo en entrenamiento, pero se mantiene en test para referencias futuras)
+if ("Id" %in% colnames(train_set)) {
+  train_set <- train_set %>% select(-Id)
+}
+
+# Convertir variables categóricas a factores si es necesario
+categorical_vars <- names(train_set)[sapply(train_set, is.character)]
+train_set[categorical_vars] <- lapply(train_set[categorical_vars], as.factor)
+test_set[categorical_vars] <- lapply(test_set[categorical_vars], as.factor)
+
+# Crear el árbol de regresión
+set.seed(42)
+arbol_regresion <- rpart(SalePrice ~ ., data = train_set, method = "anova")
+
+# Visualizar el árbol de decisión
+rpart.plot(arbol_regresion, type = 3, fallen.leaves = TRUE, cex = 0.6, main = "Árbol de Regresión para Predicción de Precio de Casas")
+
+# Evaluar el modelo en el conjunto de entrenamiento
+predicciones_train <- predict(arbol_regresion, newdata = train_set)
+mse_train <- mean((train_set$SalePrice - predicciones_train)^2, na.rm = TRUE)
+cat("Error cuadrático medio en entrenamiento (MSE):", mse_train, "\n")
+
+# Evaluar en test_set solo si tiene SalePrice
+if ("SalePrice" %in% colnames(test_set)) {
+  predicciones_test <- predict(arbol_regresion, newdata = test_set)
+  mse_test <- mean((test_set$SalePrice - predicciones_test)^2, na.rm = TRUE)
+  cat("Error cuadrático medio en prueba (MSE):", mse_test, "\n")
+  
+  # Comparar predicciones con valores reales
+  ggplot(data.frame(Real = test_set$SalePrice, Predicho = predicciones_test), aes(x = Real, y = Predicho)) +
+    geom_point(alpha = 0.5, color = "blue") +
+    geom_abline(slope = 1, intercept = 0, col = "red", linetype = "dashed") +
+    labs(title = "Predicción del Árbol de Regresión vs Valores Reales",
+         x = "Precio Real",
+         y = "Precio Predicho") +
+    theme_minimal()
+  
+} else {
+  # Verificar si test_set tiene la columna Id antes de guardar las predicciones
+  if ("Id" %in% colnames(test_set)) {
+    predicciones_test <- predict(arbol_regresion, newdata = test_set)
+    resultados <- data.frame(Id = test_set$Id, Predicho = predicciones_test)
+    write.csv(resultados, "predicciones_test.csv", row.names = FALSE)
+    cat("Predicciones guardadas en 'predicciones_test.csv'\n")
+  } else {
+    cat("⚠️ Advertencia: 'test_set' no tiene la columna 'Id', no se pueden guardar predicciones.\n")
+  }
+}
+```
+**Explicación del Árbol de Regresión para Predicción del Precio de Casas**
+
+El árbol de regresión mostrado segmenta las casas en diferentes categorías basándose en características clave para predecir su precio. Se interpreta de la siguiente manera:
+
+**1. División Inicial:**
+
+- La primera división se hace en base a la variable OverallQual (calidad general de la construcción).
+
+- Si la calidad es menor a 8, el árbol toma una ruta, y si es mayor o igual a 8, toma otra.
+
+**2. Segmentación por Vecindario:**
+
+- Para casas con OverallQual < 8, se dividen en función del vecindario (Neighborhood), separando aquellas que pertenecen a zonas con precios más bajos y aquellas en vecindarios más costosos.
+
+**3. Impacto del Tamaño de la Casa:**
+
+- Dentro de cada vecindario, la segmentación se basa en variables como X1stFlrSF (tamaño del primer piso en pies cuadrados) y GrLivArea (área habitable total).
+
+- Casas con mayor área tienden a tener precios más altos.
+
+**4. Importancia del Sótano:**
+
+- Para algunas ramas, se observa que BsmtFinSF1 (área terminada del sótano) también es un factor determinante. Si esta área es mayor, el precio de la casa tiende a subir.
+
+**5. Casas de Alta Calidad:**
+
+- Si OverallQual ≥ 8, la segmentación sigue dependiendo de OverallQual y GrLivArea.
+- Se distingue entre casas con OverallQual < 9 y aquellas con OverallQual ≥ 9.
+- En los niveles más altos, el tamaño de la casa (GrLivArea) es clave para determinar precios, con casas más grandes alcanzando precios significativamente mayores.
+
+**Conclusiones**
+
+**1. La calidad de construcción (OverallQual) es el factor más influyente en el precio.**
+
+- Un OverallQual ≥ 8 marca una diferencia significativa en el precio final.
+
+**2. El vecindario es un factor importante.**
+
+- Casas en vecindarios con precios más altos tienden a mantener valores elevados, incluso si tienen menor calidad o área habitable.
+
+**3. El tamaño del área habitable y del sótano contribuyen a la predicción del precio.**
+
+- GrLivArea y BsmtFinSF1 son indicadores clave para segmentar precios en niveles más detallados.
+
+**4. Las casas con características premium (OverallQual ≥ 9 y mayor GrLivArea) alcanzan los precios más altos.**
+
+- En la parte superior del árbol, las casas con OverallQual ≥ 9 y GrLivArea ≥ 2229 alcanzan precios superiores a los 450,000 dólares.
+
+Este árbol permite predecir el precio de las casas basándose en factores clave, ayudando a entender qué características influyen más en el valor de una propiedad.
+
+### 3. Úselo para predecir y analice el resultado. ¿Qué tal lo hizo? 
+
+```{r}
+# Cargar librerías necesarias
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(dplyr)
+library(ggplot2)
+
+# Cargar conjuntos de datos (ajustar la ruta según corresponda)
+train_set <- read.csv("house_prices_data/train.csv", stringsAsFactors = TRUE)
+test_set <- read.csv("house_prices_data/test.csv", stringsAsFactors = TRUE)
+
+# Eliminar el ID (no es predictor)
+train_set <- train_set %>% select(-Id)
+test_set <- test_set %>% select(-Id)
+
+# Convertir variables categóricas a factores si es necesario
+categorical_vars <- names(train_set)[sapply(train_set, is.character)]
+train_set[categorical_vars] <- lapply(train_set[categorical_vars], as.factor)
+test_set[categorical_vars] <- lapply(test_set[categorical_vars], as.factor)
+
+# Entrenar el árbol de regresión
+set.seed(42)
+arbol_regresion <- rpart(SalePrice ~ ., data = train_set, method = "anova")
+
+# Visualizar el árbol
+rpart.plot(arbol_regresion, type = 3, fallen.leaves = TRUE, cex = 0.6, main = "Árbol de Regresión para Predicción de Precio de Casas")
+
+# Hacer predicciones en el conjunto de prueba
+predicciones_test <- predict(arbol_regresion, newdata = test_set)
+
+# Verificar si el conjunto de prueba tiene SalePrice (para calcular el error)
+if("SalePrice" %in% names(test_set)) {
+  # Calcular el Error Cuadrático Medio (MSE)
+  mse <- mean((predicciones_test - test_set$SalePrice)^2)
+  cat("Error cuadrático medio (MSE):", mse, "\n")
+  
+  # Visualizar predicciones vs valores reales
+  ggplot(data.frame(Real = test_set$SalePrice, Predicho = predicciones_test), aes(x = Real, y = Predicho)) +
+    geom_point(alpha = 0.5, color = "blue") +
+    geom_abline(slope = 1, intercept = 0, col = "red", linetype = "dashed") +
+    labs(title = "Predicción del Árbol de Regresión vs Valores Reales",
+         x = "Precio Real",
+         y = "Precio Predicho") +
+    theme_minimal()
+} else {
+  cat("El conjunto de prueba no tiene 'SalePrice', por lo que no se puede calcular el MSE.")
+}
+```
+
+
+### 4. Haga, al menos, 3 modelos más, cambiando el parámetro de la profundidad del árbol. ¿Cuál es el mejor modelo para predecir el precio de las casas? 
+
+
+
+### 5. Compare los resultados con el modelo de regresión lineal de la hoja anterior, ¿cuál lo hizo mejor? 
+
+
+
+### 6. Dependiendo del análisis exploratorio elaborado cree una variable respuesta que le permita clasificar las casas en Económicas, Intermedias o Caras. Los límites de estas clases deben tener un fundamento en la distribución de los datos de precios, y estar bien explicados  
+
+
+
+### 7. Elabore un árbol de clasificación utilizando la variable respuesta que creó en el punto anterior.  Explique los resultados a los que llega. Muestre el modelo gráficamente. Recuerde que la nueva variable respuesta es categórica, pero se generó a partir de los precios de las casas, no incluya el precio de venta para entrenar el modelo. 
+
+
+
+### 8. Utilice el modelo con el conjunto de prueba y determine la eficiencia del algoritmo para clasificar. 
+
+
+
+### 9. Haga un análisis de la eficiencia del algoritmo usando una matriz de confusión para el árbol de clasificación. Tenga en cuenta la efectividad, donde el algoritmo se equivocó más, donde se equivocó menos y la importancia que tienen los errores. 
+
+
+
+### 10. Entrene un modelo usando validación cruzada, prediga con él. ¿le fue mejor que al modelo anterior? 
+
+
+
+### 11. Haga al menos, 3 modelos más, cambiando la profundidad del árbol. ¿Cuál funcionó mejor? 
+
+
+### 12. Repita los análisis usando random forest como algoritmo de predicción, explique sus resultados comparando ambos algoritmos.  
