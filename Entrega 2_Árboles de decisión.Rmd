@@ -1,5 +1,5 @@
 ---
-title: "Entrega 2. Árboles de decisión"
+title: "Proyecto 2. Entrega 2. Árboles de decisión"
 author: 
   - "Pablo Daniel Barillas Moreno, Carné No. 22193"
   - "Mathew Cordero Aquino, Carné No. 22982"
@@ -29,7 +29,6 @@ head(train_data)   # Muestra las primeras filas
 str(train_data)    # Muestra la estructura del dataset
 summary(train_data) # Resumen estadístico
 ```
-
 ### 1. Use los mismos conjuntos de entrenamiento y prueba que usó para los modelos de regresión lineal en la entrega anterior. 
 
 ```{r}
@@ -70,15 +69,14 @@ library(caret)
 library(dplyr)
 library(ggplot2)
 
-# Cargar conjuntos de datos
+# Cargar conjunto de datos
 train_set <- read.csv("house_prices_data/train.csv", stringsAsFactors = TRUE)
-test_set <- read.csv("house_prices_data/test.csv", stringsAsFactors = TRUE)
 
 # Revisar estructura y resumen de los datos
 str(train_set)
 summary(train_set)
 
-# Eliminar la columna de Id (solo en entrenamiento, pero se mantiene en test para referencias futuras)
+# Eliminar la columna Id (no es una variable predictora)
 if ("Id" %in% colnames(train_set)) {
   train_set <- train_set %>% select(-Id)
 }
@@ -86,96 +84,131 @@ if ("Id" %in% colnames(train_set)) {
 # Convertir variables categóricas a factores si es necesario
 categorical_vars <- names(train_set)[sapply(train_set, is.character)]
 train_set[categorical_vars] <- lapply(train_set[categorical_vars], as.factor)
-test_set[categorical_vars] <- lapply(test_set[categorical_vars], as.factor)
 
-# Crear el árbol de regresión
+# Dividir `train_set` en un conjunto de entrenamiento (80%) y prueba (20%)
+set.seed(42) # Para reproducibilidad
+train_index <- createDataPartition(train_set$SalePrice, p = 0.8, list = FALSE)
+train_data <- train_set[train_index, ]
+test_data <- train_set[-train_index, ]
+
+# Crear el árbol de regresión con el nuevo conjunto de entrenamiento
 set.seed(42)
-arbol_regresion <- rpart(SalePrice ~ ., data = train_set, method = "anova")
+arbol_regresion <- rpart(SalePrice ~ ., data = train_data, method = "anova")
 
-# Visualizar el árbol de decisión
+# Visualizar el árbol de regresión
 rpart.plot(arbol_regresion, type = 3, fallen.leaves = TRUE, cex = 0.6, main = "Árbol de Regresión para Predicción de Precio de Casas")
 
-# Evaluar el modelo en el conjunto de entrenamiento
-predicciones_train <- predict(arbol_regresion, newdata = train_set)
-mse_train <- mean((train_set$SalePrice - predicciones_train)^2, na.rm = TRUE)
+# Evaluación del modelo
+predicciones_train <- predict(arbol_regresion, newdata = train_data)
+mse_train <- mean((train_data$SalePrice - predicciones_train)^2, na.rm = TRUE)
 cat("Error cuadrático medio en entrenamiento (MSE):", mse_train, "\n")
 
-# Evaluar en test_set solo si tiene SalePrice
-if ("SalePrice" %in% colnames(test_set)) {
-  predicciones_test <- predict(arbol_regresion, newdata = test_set)
-  mse_test <- mean((test_set$SalePrice - predicciones_test)^2, na.rm = TRUE)
-  cat("Error cuadrático medio en prueba (MSE):", mse_test, "\n")
-  
-  # Comparar predicciones con valores reales
-  ggplot(data.frame(Real = test_set$SalePrice, Predicho = predicciones_test), aes(x = Real, y = Predicho)) +
-    geom_point(alpha = 0.5, color = "blue") +
-    geom_abline(slope = 1, intercept = 0, col = "red", linetype = "dashed") +
-    labs(title = "Predicción del Árbol de Regresión vs Valores Reales",
-         x = "Precio Real",
-         y = "Precio Predicho") +
-    theme_minimal()
-  
-} else {
-  # Verificar si test_set tiene la columna Id antes de guardar las predicciones
-  if ("Id" %in% colnames(test_set)) {
-    predicciones_test <- predict(arbol_regresion, newdata = test_set)
-    resultados <- data.frame(Id = test_set$Id, Predicho = predicciones_test)
-    write.csv(resultados, "predicciones_test.csv", row.names = FALSE)
-    cat("Predicciones guardadas en 'predicciones_test.csv'\n")
-  } else {
-    cat("⚠️ Advertencia: 'test_set' no tiene la columna 'Id', no se pueden guardar predicciones.\n")
-  }
-}
+predicciones_test <- predict(arbol_regresion, newdata = test_data)
+mse_test <- mean((test_data$SalePrice - predicciones_test)^2, na.rm = TRUE)
+cat("Error cuadrático medio en prueba (MSE):", mse_test, "\n")
+
+# Comparar predicciones con valores reales
+ggplot(data.frame(Real = test_data$SalePrice, Predicho = predicciones_test), aes(x = Real, y = Predicho)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_abline(slope = 1, intercept = 0, col = "red", linetype = "dashed") +
+  labs(title = "Predicción del Árbol de Regresión vs Valores Reales",
+       x = "Precio Real",
+       y = "Precio Predicho") +
+  theme_minimal()
 ```
-**Explicación del Árbol de Regresión para Predicción del Precio de Casas**
+**Análisis del Árbol de Regresión y Resultados**
 
-El árbol de regresión mostrado segmenta las casas en diferentes categorías basándose en características clave para predecir su precio. Se interpreta de la siguiente manera:
+**2.1. Interpretación del Árbol de Regresión**
 
-**1. División Inicial:**
+El árbol de regresión construido tiene como objetivo predecir el precio de las casas utilizando todas las variables disponibles en el conjunto de datos. La estructura del árbol nos permite identificar qué variables tienen mayor influencia en la predicción del precio y cómo se segmentan los diferentes valores de las propiedades. A partir de la imagen del árbol, se pueden extraer varios hallazgos clave:
 
-- La primera división se hace en base a la variable OverallQual (calidad general de la construcción).
+**2.1.1. División Principal:**
 
-- Si la calidad es menor a 8, el árbol toma una ruta, y si es mayor o igual a 8, toma otra.
+- La primera división del árbol está determinada por la variable OverallQual (calidad general de la casa). Esto indica que la calidad de construcción y los materiales utilizados son el principal factor que influye en el precio de las casas.
 
-**2. Segmentación por Vecindario:**
+- **Si OverallQual < 8**, el árbol sigue subdividiendo por variables como GrLivArea (área habitable en pies cuadrados), Neighborhood (vecindario) y BsmtFinSF1 (área terminada del sótano). Esto sugiere que para casas de calidad media o baja, el precio está más condicionado por el tamaño de la casa y su ubicación.
 
-- Para casas con OverallQual < 8, se dividen en función del vecindario (Neighborhood), separando aquellas que pertenecen a zonas con precios más bajos y aquellas en vecindarios más costosos.
+- **Si OverallQual ≥ 8**, la predicción del precio se guía por GrLivArea y YearBuilt (año de construcción). Esto significa que para casas de mayor calidad, las dimensiones de la propiedad y el año de construcción juegan un papel fundamental en la determinación del precio.
 
-**3. Impacto del Tamaño de la Casa:**
+**2.2. Segmentación por Tamaño y Ubicación:**
 
-- Dentro de cada vecindario, la segmentación se basa en variables como X1stFlrSF (tamaño del primer piso en pies cuadrados) y GrLivArea (área habitable total).
+- **Para casas con OverallQual < 7**, el precio tiende a ser más bajo y se ve influenciado principalmente por GrLivArea y Neighborhood. Esto sugiere que, en propiedades de menor calidad, la ubicación y el tamaño son factores determinantes en la variación del precio.
 
-- Casas con mayor área tienden a tener precios más altos.
+- **Para casas con OverallQual ≥ 9**, el precio tiende a ser significativamente más alto, y el árbol segmenta aún más las predicciones basándose en GrLivArea y Neighborhood. Esto implica que en propiedades de lujo, el tamaño de la casa y su ubicación en vecindarios de prestigio juegan un papel clave en la valorización de la propiedad.
 
-**4. Importancia del Sótano:**
+- *Vecindarios como NoRidge y StoneBr aparecen en la parte superior de la jerarquía de segmentación para las casas más costosas, lo que indica que las propiedades en estas zonas tienden a tener precios más elevados.
 
-- Para algunas ramas, se observa que BsmtFinSF1 (área terminada del sótano) también es un factor determinante. Si esta área es mayor, el precio de la casa tiende a subir.
+**2.3. Análisis del Desempeño del Modelo**
 
-**5. Casas de Alta Calidad:**
+El rendimiento del modelo se evalúa mediante el error cuadrático medio (MSE), el cual nos indica qué tan lejos están las predicciones del modelo en relación con los valores reales de las casas.
 
-- Si OverallQual ≥ 8, la segmentación sigue dependiendo de OverallQual y GrLivArea.
-- Se distingue entre casas con OverallQual < 9 y aquellas con OverallQual ≥ 9.
-- En los niveles más altos, el tamaño de la casa (GrLivArea) es clave para determinar precios, con casas más grandes alcanzando precios significativamente mayores.
+- **MSE en entrenamiento**: 1,297,581,895
+- **MSE en prueba**: 1,658,823,049
 
-**Conclusiones**
+Un aspecto importante a notar es que el MSE en prueba es mayor que el MSE en entrenamiento. Esto sugiere que el modelo tiene una alta varianza, lo que significa que puede estar sobreajustado a los datos de entrenamiento. Un modelo sobreajustado tiende a aprender demasiado bien los patrones del conjunto de entrenamiento, pero pierde capacidad de generalización cuando se le presentan nuevos datos en el conjunto de prueba.
 
-**1. La calidad de construcción (OverallQual) es el factor más influyente en el precio.**
+La diferencia entre los errores nos indica que el modelo podría estar capturando demasiado ruido en el entrenamiento, lo cual podría corregirse mediante técnicas como la poda del árbol o el ajuste de hiperparámetros para reducir la complejidad del modelo.
 
-- Un OverallQual ≥ 8 marca una diferencia significativa en el precio final.
+**2.4. Evaluación de Predicciones vs Valores Reales**
 
-**2. El vecindario es un factor importante.**
+En la segunda imagen proporcionada, se muestra un gráfico de dispersión donde el eje X representa los valores reales del precio de las casas y el eje Y representa los valores predichos por el modelo.
 
-- Casas en vecindarios con precios más altos tienden a mantener valores elevados, incluso si tienen menor calidad o área habitable.
+- **Línea roja diagonal**: Representa la relación ideal entre las predicciones y los valores reales. Si todas las predicciones fueran perfectas, los puntos estarían alineados sobre esta línea.
 
-**3. El tamaño del área habitable y del sótano contribuyen a la predicción del precio.**
+- **Puntos azules dispersos**: Indican cómo se distribuyen las predicciones del modelo en relación con los valores reales.
 
-- GrLivArea y BsmtFinSF1 son indicadores clave para segmentar precios en niveles más detallados.
+A partir de la gráfica podemos notar:
 
-**4. Las casas con características premium (OverallQual ≥ 9 y mayor GrLivArea) alcanzan los precios más altos.**
+2.4.1. **Buena predicción en el rango medio de precios**: Para casas con precios dentro de un rango medio, el modelo parece tener una precisión aceptable, ya que varios puntos están cercanos a la línea roja.
 
-- En la parte superior del árbol, las casas con OverallQual ≥ 9 y GrLivArea ≥ 2229 alcanzan precios superiores a los 450,000 dólares.
+2.4.2. **Dificultad con valores extremos**: Para casas con precios extremadamente altos o bajos, el modelo tiene una mayor dispersión, lo que indica que sus predicciones son menos precisas. Esto es un indicio de que el modelo no está capturando completamente la variabilidad de los precios en los extremos.
 
-Este árbol permite predecir el precio de las casas basándose en factores clave, ayudando a entender qué características influyen más en el valor de una propiedad.
+2.4.3. **Subestimación de precios altos**: Algunas casas de precios elevados aparecen con valores predichos mucho más bajos de lo esperado. Esto sugiere que el modelo tiene dificultades para capturar correctamente los factores que hacen que una casa tenga un precio significativamente alto.
+
+2.4.4. **Sobreestimación en algunos casos**: También hay algunos casos en los que el modelo sobreestima el precio de casas de menor valor, indicando que podría estar considerando características menos relevantes como altamente influyentes.
+
+**2.5. Conclusiones y Recomendaciones**
+
+El modelo identifica correctamente los principales factores que afectan el precio de una casa:
+
+2.5.1.**OverallQual (calidad de la casa) es la variable más relevante**.
+
+- GrLivArea (tamaño habitable) y Neighborhood (vecindario) también tienen un impacto clave.
+- YearBuilt (año de construcción) influye más en casas de mayor calidad.
+
+2.5.2. **El modelo tiene un MSE relativamente alto, lo que indica margen de mejora**:
+
+- La diferencia entre el MSE en entrenamiento y en prueba sugiere sobreajuste.
+
+- Se podría mejorar utilizando técnicas como poda del árbol, validación cruzada o ajuste de hiperparámetros para reducir la varianza.
+
+2.5.3. **El modelo funciona bien para precios en el rango medio, pero tiene problemas con valores extremos**:
+
+- Predice bien precios intermedios, pero subestima valores altos y tiene errores en casos de precios muy bajos.
+
+- Se podría explorar la inclusión de interacciones entre variables o utilizar modelos más avanzados como Random Forest o Gradient Boosting para mejorar la precisión.
+
+2.5.4. **El modelo es interpretable y proporciona información útil sobre la influencia de diferentes características en el precio de las casas**:
+
+- A diferencia de modelos más complejos como redes neuronales o ensembles, los árboles de decisión permiten una visualización clara de cómo se toman las decisiones de predicción.
+
+- Sin embargo, esta ventaja de interpretabilidad viene a costa de menor precisión en las predicciones.
+
+**Recomendaciones para Mejorar el Modelo**
+
+- Para mejorar el desempeño del modelo y obtener predicciones más precisas, se pueden considerar los siguientes enfoques:
+
+- **Poda del árbol**: Reducir el tamaño del árbol eliminando divisiones poco significativas para evitar sobreajuste.
+
+- **Uso de Random Forest o Gradient Boosting**: Árboles de regresión individuales pueden ser inestables, mientras que métodos basados en ensambles pueden mejorar la precisión al combinar múltiples árboles.
+
+- **Feature Engineering**: Investigar si transformar algunas variables o agregar nuevas combinaciones de variables podría mejorar las predicciones.
+
+- **Validación Cruzada**: Evaluar el modelo con validación cruzada para asegurarse de que su rendimiento es consistente en diferentes subconjuntos de datos.
+
+**Conclusión Final**
+
+El árbol de regresión construido proporciona una buena interpretación de los factores clave que afectan el precio de las casas. Sin embargo, su precisión es limitada, especialmente en valores extremos. El modelo tiene un nivel de error considerable, indicando que aunque captura bien algunas tendencias generales, no generaliza de manera óptima para todas las observaciones. Mejoras adicionales pueden hacerse mediante poda del árbol o exploración de modelos más sofisticados como Random Forest o Gradient Boosting.
 
 ### 3. Úselo para predecir y analice el resultado. ¿Qué tal lo hizo? 
 
@@ -187,67 +220,459 @@ library(caret)
 library(dplyr)
 library(ggplot2)
 
-# Cargar conjuntos de datos (ajustar la ruta según corresponda)
+# Cargar conjunto de datos
 train_set <- read.csv("house_prices_data/train.csv", stringsAsFactors = TRUE)
-test_set <- read.csv("house_prices_data/test.csv", stringsAsFactors = TRUE)
 
-# Eliminar el ID (no es predictor)
-train_set <- train_set %>% select(-Id)
-test_set <- test_set %>% select(-Id)
+# Eliminar la columna de Id (ya que no aporta a la predicción)
+if ("Id" %in% colnames(train_set)) {
+  train_set <- train_set %>% select(-Id)
+}
 
 # Convertir variables categóricas a factores si es necesario
 categorical_vars <- names(train_set)[sapply(train_set, is.character)]
 train_set[categorical_vars] <- lapply(train_set[categorical_vars], as.factor)
-test_set[categorical_vars] <- lapply(test_set[categorical_vars], as.factor)
 
-# Entrenar el árbol de regresión
+# Dividir el conjunto de entrenamiento en training (80%) y test (20%)
 set.seed(42)
-arbol_regresion <- rpart(SalePrice ~ ., data = train_set, method = "anova")
+train_index <- createDataPartition(train_set$SalePrice, p = 0.8, list = FALSE)
+train_data <- train_set[train_index, ]
+test_data <- train_set[-train_index, ]
 
-# Visualizar el árbol
+# Crear el modelo de árbol de regresión
+set.seed(42)
+arbol_regresion <- rpart(SalePrice ~ ., data = train_data, method = "anova")
+
+# Visualizar el árbol de decisión
 rpart.plot(arbol_regresion, type = 3, fallen.leaves = TRUE, cex = 0.6, main = "Árbol de Regresión para Predicción de Precio de Casas")
 
-# Hacer predicciones en el conjunto de prueba
-predicciones_test <- predict(arbol_regresion, newdata = test_set)
+# Evaluación del modelo en entrenamiento
+predicciones_train <- predict(arbol_regresion, newdata = train_data)
+mse_train <- mean((train_data$SalePrice - predicciones_train)^2, na.rm = TRUE)
+cat("Error cuadrático medio en entrenamiento (MSE):", mse_train, "\n")
 
-# Verificar si el conjunto de prueba tiene SalePrice (para calcular el error)
-if("SalePrice" %in% names(test_set)) {
-  # Calcular el Error Cuadrático Medio (MSE)
-  mse <- mean((predicciones_test - test_set$SalePrice)^2)
-  cat("Error cuadrático medio (MSE):", mse, "\n")
-  
-  # Visualizar predicciones vs valores reales
-  ggplot(data.frame(Real = test_set$SalePrice, Predicho = predicciones_test), aes(x = Real, y = Predicho)) +
-    geom_point(alpha = 0.5, color = "blue") +
-    geom_abline(slope = 1, intercept = 0, col = "red", linetype = "dashed") +
-    labs(title = "Predicción del Árbol de Regresión vs Valores Reales",
-         x = "Precio Real",
-         y = "Precio Predicho") +
-    theme_minimal()
-} else {
-  cat("El conjunto de prueba no tiene 'SalePrice', por lo que no se puede calcular el MSE.")
-}
+# Evaluación del modelo en prueba
+predicciones_test <- predict(arbol_regresion, newdata = test_data)
+mse_test <- mean((test_data$SalePrice - predicciones_test)^2, na.rm = TRUE)
+cat("Error cuadrático medio en prueba (MSE):", mse_test, "\n")
+
+# Comparar predicciones con valores reales
+ggplot(data.frame(Real = test_data$SalePrice, Predicho = predicciones_test), aes(x = Real, y = Predicho)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_abline(slope = 1, intercept = 0, col = "red", linetype = "dashed") +
+  labs(title = "Predicción del Árbol de Regresión vs Valores Reales",
+       x = "Precio Real",
+       y = "Precio Predicho") +
+  theme_minimal()
 ```
+**Análisis y Evaluación del Modelo de Árbol de Regresión**
 
+**3.1.Evaluación del Desempeño con el Error Cuadrático Medio (MSE)**
+
+**MSE en entrenamiento**: 1,297,581,895
+**MSE en prueba**: 1,658,823,049
+
+El error cuadrático medio en prueba es considerablemente mayor que en entrenamiento, lo que indica que el modelo podría estar sobreajustado a los datos de entrenamiento y no generaliza bien a nuevos datos.
+
+**3.2. Interpretación del Árbol de Regresión**
+
+El árbol de regresión muestra que las variables más importantes para la predicción del precio de las casas son:
+
+- **OverallQual (Calidad general de la casa)**: Es la primera división del árbol, lo que indica que es el factor más influyente.
+
+- **GrLivArea (Área habitable en pies cuadrados por encima del suelo)**: También tiene un impacto significativo en la segmentación.
+
+- **Neighborhood (Barrio en el que se encuentra la casa)**: Determina la segmentación en varias ramas del árbol.
+
+- **BsmtFinSF1 (Área del sótano terminado) y YearBuilt (Año de construcción de la casa)**: También son importantes en las ramas finales del árbol.
+
+Estos criterios de división nos dicen que el precio de una casa se ve afectado en gran medida por la calidad de construcción, el tamaño habitable y la ubicación.
+
+**3.3. Interpretación del Gráfico de Predicciones vs Valores Reales**
+
+3.3.1. **Tendencia lineal visible, pero dispersión alta**:
+
+- Aunque existe una correlación entre los valores reales y predichos, hay una gran dispersión, especialmente en precios altos.
+
+- Esto sugiere que el modelo no es preciso para valores atípicos (casas muy caras o muy baratas).
+
+3.3.2. **Subestimación de precios altos**:
+
+- Se observa que el modelo tiende a subestimar los precios de casas caras (muchos puntos están por debajo de la línea roja).
+
+- Esto indica que el modelo no captura bien las características que elevan el precio de las casas más costosas.
+
+**3.4. Conclusiones y Posibles Mejoras**
+
+3.4.1. **El modelo no generaliza bien**:
+
+- La diferencia entre el MSE de entrenamiento y prueba indica sobreajuste.
+
+- Posible solución: Poda del árbol de decisión para evitar que sea demasiado complejo.
+
+3.4.2. **Los valores atípicos afectan el desempeño**:
+
+- Casas de precio muy alto tienen predicciones más imprecisas.
+
+- Posible solución: Aplicar transformación logarítmica a SalePrice para reducir la variabilidad.
+
+3.4.3. **Podría beneficiarse de modelos más avanzados**:
+
+- Un árbol de decisión simple tiene limitaciones.
+
+**Alternativas más robustas**:
+
+- Random Forest (bosques aleatorios) para mejorar la generalización.
+
+- Gradient Boosting para capturar mejor la relación entre variables.
+
+**Conclusión Final**
+
+El árbol de regresión logra capturar algunas relaciones clave en la predicción del precio de las casas, pero presenta sobreajuste y dificultad en valores extremos. Para mejorar el modelo, se recomienda poda del árbol, transformación de variables y probar modelos más avanzados como Random Forest o Gradient Boosting.
 
 ### 4. Haga, al menos, 3 modelos más, cambiando el parámetro de la profundidad del árbol. ¿Cuál es el mejor modelo para predecir el precio de las casas? 
 
+```{r}
+# Cargar librerías necesarias
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(dplyr)
+library(ggplot2)
 
+# Cargar conjunto de datos
+train_set <- read.csv("house_prices_data/train.csv", stringsAsFactors = TRUE)
+
+# Dividir en train y test (80%-20%)
+set.seed(42)
+trainIndex <- createDataPartition(train_set$SalePrice, p = 0.8, list = FALSE)
+train_data <- train_set[trainIndex, ]
+test_data <- train_set[-trainIndex, ]
+
+# Función para entrenar y evaluar modelos con diferentes profundidades
+evaluar_modelo <- function(cp_value, maxdepth) {
+  modelo <- rpart(SalePrice ~ ., data = train_data, method = "anova",
+                  control = rpart.control(cp = cp_value, maxdepth = maxdepth))
+  
+  # Predicciones en conjunto de prueba
+  predicciones_test <- predict(modelo, newdata = test_data)
+  mse_test <- mean((test_data$SalePrice - predicciones_test)^2, na.rm = TRUE)
+  
+  # Graficar el árbol
+  cat("Modelo con maxdepth =", maxdepth, "- MSE en prueba:", mse_test, "\n")
+  rpart.plot(modelo, main = paste("Árbol de Regresión (maxdepth =", maxdepth, ")"))
+  
+  return(list(modelo = modelo, mse_test = mse_test))
+}
+
+# Crear y evaluar tres modelos con diferentes profundidades
+set.seed(42)
+modelo1 <- evaluar_modelo(cp_value = 0.01, maxdepth = 3)  # Árbol poco profundo
+modelo2 <- evaluar_modelo(cp_value = 0.01, maxdepth = 5)  # Árbol intermedio
+modelo3 <- evaluar_modelo(cp_value = 0.01, maxdepth = 8)  # Árbol más complejo
+
+# Comparación de los modelos
+mse_values <- data.frame(
+  Modelo = c("MaxDepth 3", "MaxDepth 5", "MaxDepth 8"),
+  MSE = c(modelo1$mse_test, modelo2$mse_test, modelo3$mse_test)
+)
+
+ggplot(mse_values, aes(x = Modelo, y = MSE)) +
+  geom_col(fill = "steelblue") +
+  geom_text(aes(label = round(MSE, 0)), vjust = -0.5) +
+  labs(title = "Comparación de Modelos con Diferente Profundidad",
+       x = "Modelo",
+       y = "Error Cuadrático Medio (MSE)") +
+  theme_minimal()
+```
+**Análisis de los Modelos con Diferente Profundidad**
+
+A partir de los resultados obtenidos en la comparación de los modelos con distintas profundidades, podemos extraer las siguientes conclusiones:
+
+**4.1. Comportamiento de los Modelos**
+
+**MaxDepth 3**:
+
+- El modelo con una profundidad de 3 tiene el MSE más alto (1,989,007,643).
+
+- Esto indica que el árbol es demasiado simple y no captura bien la complejidad del problema.
+
+- Al ser poco profundo, no logra modelar correctamente las relaciones entre las variables y los precios de las casas.
+
+**MaxDepth 5**:
+
+- Redujo significativamente el error con un MSE de 1,658,823,049.
+
+- Indica que el modelo empieza a capturar relaciones más relevantes sin sobreajustar.
+
+- Es una mejora notable en comparación con el modelo más simple.
+
+**MaxDepth 8**:
+
+- Tiene el mismo MSE que el modelo con profundidad 5 (1,658,823,049).
+
+- Esto sugiere que aumentar la profundidad no mejora el rendimiento, sino que estabiliza el error.
+
+- Podría ser un signo de sobreajuste en el conjunto de entrenamiento, ya que la ganancia de precisión en los datos de prueba es nula.
+
+**4.2. ¿Cuál es el Mejor Modelo?**
+
+**El modelo con MaxDepth 5 parece ser la mejor opción**.
+
+- Reduce significativamente el error en comparación con MaxDepth 3.
+
+- No muestra mejora adicional al aumentar la profundidad a 8.
+
+- Balancea bien la capacidad predictiva y la generalización sin caer en sobreajuste.
+
+**4.3. ¿Por qué no seguir aumentando la profundidad?**
+
+- Profundidades mayores podrían llevar al modelo a memorizar los datos de entrenamiento, perdiendo capacidad de generalización.
+
+- El hecho de que MaxDepth 8 tenga el mismo MSE que MaxDepth 5 indica que más profundidad no aporta mejoras en los datos de prueba.
+
+- Se podría optimizar aún más probando poda (prune()) o ajustando el parámetro cp para reducir el número de nodos irrelevantes.
+
+**Conclusión Final**
+
+- Profundidad 3 (maxdepth = 3) → Alto MSE, indicando un modelo subajustado (underfitting).
+
+- Profundidad 5 (maxdepth = 5) → MSE menor, mejor ajuste.
+
+- Profundidad 8 (maxdepth = 8) → MSE similar a maxdepth = 5, sin grandes mejoras, indicando posible sobreajuste (overfitting).
+
+Por lo tanto, el mejor modelo sería el de profundidad 5 (maxdepth = 5), ya que logra un buen equilibrio entre precisión y generalización.
 
 ### 5. Compare los resultados con el modelo de regresión lineal de la hoja anterior, ¿cuál lo hizo mejor? 
 
+**Comparación del Modelo de Regresión Lineal y el Árbol de Regresión**
 
+Para evaluar cuál modelo predice mejor el precio de las casas, analizamos la métrica del Error Cuadrático Medio (MSE) en el conjunto de prueba. El MSE mide la diferencia promedio al cuadrado entre los valores predichos y los valores reales, donde un valor menor indica un mejor desempeño del modelo.
 
-### 6. Dependiendo del análisis exploratorio elaborado cree una variable respuesta que le permita clasificar las casas en Económicas, Intermedias o Caras. Los límites de estas clases deben tener un fundamento en la distribución de los datos de precios, y estar bien explicados  
+**5.1. Resultados del MSE**
 
+A partir de los cálculos realizados en ambas entregas, obtenemos los siguientes valores de MSE para los modelos evaluados:
 
+**Modelo de Regresión Lineal (Mejor modelo: Ridge Regression)**
+
+**MSE en prueba**:
+
+1.02 × 10⁹ (Extraído de la Serie 12 en la entrega proyecto 2. Entrega 1)
+
+**MSE en entrenamiento**:
+
+Inferior al de prueba, lo que indica un buen ajuste sin sobreajuste significativo.
+
+**Modelo de Árbol de Regresión (Mejor modelo: Profundidad 5)**
+
+**MSE en prueba**:
+
+1.65 × 10⁹
+ 
+**MSE en entrenamiento**:
+
+1.29 × 10⁹, lo que sugiere que el modelo ajusta bien los datos de entrenamiento, pero en la prueba su desempeño disminuye considerablemente.
+
+**5.2. Análisis Comparativo**
+
+**Precisión y Generalización**
+
+- La regresión lineal con Ridge Regression tiene un MSE más bajo en el conjunto de prueba, lo que indica que generaliza mejor a datos no vistos.
+
+- El árbol de regresión, a pesar de proporcionar interpretabilidad, tiene un MSE más alto, lo que sugiere que no captura tan bien las relaciones entre las variables predictoras y el precio de las casas.
+
+**Posibles razones del mejor rendimiento de Ridge Regression**
+
+**Regularización eficiente**
+
+- Ridge Regression aplica una penalización a los coeficientes de la regresión lineal, evitando el sobreajuste y asegurando una mejor generalización a datos nuevos.
+
+- Esto es crucial en este conjunto de datos, que contiene muchas variables con correlaciones entre sí.
+
+**Mejor manejo de la multicolinealidad**
+
+- En el modelo de regresión lineal, la multicolinealidad (cuando varias variables están altamente correlacionadas) se reduce gracias a la regularización de Ridge.
+
+- En cambio, el árbol de regresión no maneja bien la multicolinealidad, lo que puede llevar a decisiones ineficientes en la construcción del árbol.
+
+**Sensibilidad a la estructura de los datos**
+
+- Los árboles de decisión tienden a fragmentar demasiado los datos cuando tienen muchas variables categóricas, lo que puede llevar a una alta variabilidad en los resultados.
+
+- La regresión lineal, en cambio, utiliza todas las variables con un enfoque más suave y continuo, mejor capturando tendencias en los precios de las casas.
+
+**5.3. ¿Cuál modelo lo hizo mejor?**
+
+**Basándonos en los valores de MSE y el análisis anterior, podemos concluir que**:
+
+✔️ El modelo de Regresión Lineal con Ridge Regression es superior
+
+- Tiene el menor MSE, lo que indica una mejor capacidad de predicción.
+
+- Su regularización permite un mejor balance entre precisión y generalización.
+
+- Maneja mejor la multicolinealidad y evita la fragmentación excesiva de los datos.
+
+❌ El Árbol de Regresión tiene un MSE mayor
+
+- No logra predecir con la misma precisión que la regresión lineal.
+
+- Puede ser útil para interpretar qué variables son más importantes, pero no es la mejor opción para obtener predicciones precisas del precio de las casas.
+
+**5.4. Conclusión Final**
+
+Si el objetivo es predecir con la mayor precisión posible el precio de las casas, el modelo de Regresión Lineal con Ridge Regression es la mejor opción. Aunque los árboles de regresión pueden ofrecer interpretabilidad y facilitar la comprensión de las relaciones entre variables, en términos de predicción numérica, la regresión lineal es más efectiva en este caso.
+
+Para mejorar el modelo de árbol de regresión, podríamos considerar técnicas como:
+
+- Poda más agresiva para evitar sobreajuste.
+
+- Uso de Random Forest en lugar de un solo árbol.
+
+- Incorporación de técnicas de selección de características para mejorar la precisión.
+
+Sin embargo, dado el análisis actual, el modelo de regresión lineal sigue siendo el mejor para este conjunto de datos.
+
+### 6. Dependiendo del análisis exploratorio elaborado cree una variable respuesta que le permita clasificar las casas en Económicas, Intermedias o Caras. Los límites de estas clases deben tener un fundamento en la distribución de los datos de precios, y estar bien explicados 
+
+**6.1. Creación de una Variable de Clasificación de Casas**
+
+Para clasificar las casas en Económicas, Intermedias o Caras, es necesario definir los límites de cada categoría basándonos en la distribución de los precios. Utilizaremos la variable SalePrice, que representa el precio de las casas, y estableceremos los umbrales de clasificación fundamentados en el análisis exploratorio.
+
+**6.1.1. Análisis de la Distribución del Precio de las Casas**
+
+Para establecer los rangos de cada categoría, analizaremos la distribución de SalePrice en el conjunto de datos de entrenamiento (train_set).
+
+Visualización de la Distribución de SalePrice
+
+```{r}
+# Cargar librerías necesarias
+library(ggplot2)
+
+# Visualizar la distribución del precio de venta de las casas
+ggplot(train_set, aes(x = SalePrice)) + 
+  geom_histogram(bins = 50, fill = "blue", alpha = 0.7) +
+  labs(title = "Distribución de los Precios de las Casas",
+       x = "Precio de Venta (USD)",
+       y = "Frecuencia") +
+  theme_minimal()
+```
+
+**Cálculo de Percentiles**
+
+Para definir los límites de cada categoría, utilizamos los percentiles de la distribución:
+
+```{r}
+# Calcular percentiles clave
+quantiles <- quantile(train_set$SalePrice, probs = c(0.33, 0.66))
+quantiles
+```
+Esto nos devuelve dos valores:
+
+- 33% Percentil (Q1) → Representa el umbral entre casas económicas e intermedias.
+
+- 66% Percentil (Q2) → Representa el umbral entre casas intermedias y caras.
+
+**6.2. Definición de los Rangos de Clasificación**
+
+Utilizando los percentiles obtenidos, definimos los rangos de clasificación de las casas:
+
+| **Categoría**                     | **Rango de Precio (SalePrice)** |
+|-----------------------------------|---------------------------------|
+| **Económicas**                    | Menor o igual al percentil 33 (Q1).|
+| **Intermedias**                   | Entre Q1 y Q2.                     |
+| **Caras**                         | Mayor o igual al percentil 66 (Q2) |
+
+```{r}
+# Crear nueva variable categórica basada en los percentiles
+train_set$Categoria <- cut(train_set$SalePrice,
+                           breaks = c(-Inf, quantiles[1], quantiles[2], Inf),
+                           labels = c("Económica", "Intermedia", "Cara"))
+
+# Ver distribución de la nueva variable
+table(train_set$Categoria)
+```
+**6.3. Visualización de la Nueva Clasificación**
+
+Podemos visualizar cómo se agrupan las casas en cada categoría:
+
+```{r}
+# Gráfico de Precios por Categoría
+ggplot(train_set, aes(x = Categoria, y = SalePrice, fill = Categoria)) +
+  geom_boxplot() +
+  labs(title = "Clasificación de Casas por Precio",
+       x = "Categoría",
+       y = "Precio de Venta (USD)") +
+  theme_minimal()
+```
+
+**6.4. Explicación del Fundamento de los Límites**
+
+La elección de los percentiles 33% y 66% como umbrales de clasificación está fundamentada en la distribución de los precios:
+
+- El percentil 33% (Q1) representa el tercio inferior de las casas, que tienen precios más bajos en comparación con el resto del mercado. Estas se consideran casas económicas.
+
+- El percentil 66% (Q2) marca el inicio del tercio superior, que agrupa las casas con precios significativamente más altos. Estas se consideran casas caras.
+
+- Las casas en el rango intermedio (entre Q1 y Q2) representan el segmento medio del mercado, por lo que se clasifican como intermedias.
+
+Este método permite una segmentación basada en datos objetivos, garantizando que cada categoría refleje una proporción equilibrada de casas en el conjunto de datos.
+
+**6.5. Conclusión**
+
+Se ha creado una nueva variable Categoria que clasifica las casas en tres categorías: Económicas, Intermedias y Caras, utilizando percentiles de la distribución de SalePrice como umbrales. Esto proporciona una clasificación basada en datos reales y reproducible, que puede utilizarse para análisis adicionales, visualizaciones o modelos predictivos de clasificación.
 
 ### 7. Elabore un árbol de clasificación utilizando la variable respuesta que creó en el punto anterior.  Explique los resultados a los que llega. Muestre el modelo gráficamente. Recuerde que la nueva variable respuesta es categórica, pero se generó a partir de los precios de las casas, no incluya el precio de venta para entrenar el modelo. 
 
+```{r}
+# Definir los límites con cuartiles
+q1 <- quantile(train_set$SalePrice, 0.33, na.rm = TRUE)  # 33% más barato
+q2 <- quantile(train_set$SalePrice, 0.66, na.rm = TRUE)  # 66% intermedio
 
+# Crear la categoría basada en SalePrice
+train_set$Categoria <- cut(train_set$SalePrice, 
+                           breaks = c(-Inf, q1, q2, Inf), 
+                           labels = c("Económica", "Intermedia", "Cara"))
+
+# Convertir a factor
+train_set$Categoria <- as.factor(train_set$Categoria)
+
+# Verificar la distribución
+table(train_set$Categoria)
+```
+
+
+```{r}
+# Cargar librerías necesarias
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(dplyr)
+library(ggplot2)
+
+# Cargar datos de entrenamiento
+train_set <- read.csv("train_set.csv", stringsAsFactors = TRUE)
+
+# Eliminar el ID si existe
+if ("Id" %in% colnames(train_set)) {
+  train_set <- train_set %>% select(-Id)
+}
+
+# Convertir la variable `Categoria` a factor (categórica)
+train_set$Categoria <- as.factor(train_set$Categoria)
+
+# Excluir SalePrice (porque ya se usó para generar Categoria)
+train_set <- train_set %>% select(-SalePrice)
+
+# Crear el modelo de árbol de clasificación
+set.seed(42)
+arbol_clasificacion <- rpart(Categoria ~ ., data = train_set, method = "class")
+
+# Visualizar el árbol de clasificación
+rpart.plot(arbol_clasificacion, type = 3, extra = 104, fallen.leaves = TRUE, cex = 0.6, 
+           main = "Árbol de Clasificación - Categoría de Casas")
+```
 
 ### 8. Utilice el modelo con el conjunto de prueba y determine la eficiencia del algoritmo para clasificar. 
-
 
 
 ### 9. Haga un análisis de la eficiencia del algoritmo usando una matriz de confusión para el árbol de clasificación. Tenga en cuenta la efectividad, donde el algoritmo se equivocó más, donde se equivocó menos y la importancia que tienen los errores. 
@@ -261,4 +686,7 @@ if("SalePrice" %in% names(test_set)) {
 ### 11. Haga al menos, 3 modelos más, cambiando la profundidad del árbol. ¿Cuál funcionó mejor? 
 
 
+
 ### 12. Repita los análisis usando random forest como algoritmo de predicción, explique sus resultados comparando ambos algoritmos.  
+
+
