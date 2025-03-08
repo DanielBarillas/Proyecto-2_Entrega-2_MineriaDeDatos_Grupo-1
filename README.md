@@ -8,3 +8,13 @@
 ## 👥 Integrantes del Grupo #1  
 - **Pablo Daniel Barillas Moreno** - *Carné No. 22193*  
 - **Mathew Cordero Aquino** - *Carné No. 22982*
+---
+
+## 🛠 Tecnologías Utilizadas  
+
+- **Lenguaje utilizado:** R  
+- **Plataforma:** RStudio  
+- **Control de Versiones:** GitHub  
+
+---
+🎯 **¡Gracias por revisar nuestro proyecto 2. Entrega 2!** 🚀
