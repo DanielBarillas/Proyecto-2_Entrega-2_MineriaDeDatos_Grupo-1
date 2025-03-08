@@ -4,9 +4,9 @@ author:
   - "Pablo Daniel Barillas Moreno, Carné No. 22193"
   - "Mathew Cordero Aquino, Carné No. 22982"
 output:
-  html_document: default
   pdf_document:
     latex_engine: xelatex
+  html_document: default
 date: "2025-02-02"
 header-includes:
    - \usepackage{fvextra}
@@ -14,7 +14,7 @@ header-includes:
 repository: "https://github.com/DanielBarillas/Proyecto-2_Entrega-2_MineriaDeDatos_Grupo-1.git"
 ---
 
-### Enlace al Repositorio del proyecto 2 de minería de datos del Grupo #1
+### Enlace al Repositorio del proyecto 2 - Entrega 2 de minería de datos del Grupo #1
 [Repositorio en GitHub](https://github.com/DanielBarillas/Proyecto-2_Entrega-2_MineriaDeDatos_Grupo-1.git)
 
 ### 0. Descargue los conjuntos de datos. 
@@ -576,11 +576,11 @@ Esto nos devuelve dos valores:
 
 Utilizando los percentiles obtenidos, definimos los rangos de clasificación de las casas:
 
-| **Categoría**                     | **Rango de Precio (SalePrice)** |
-|-----------------------------------|---------------------------------|
-| **Económicas**                    | Menor o igual al percentil 33 (Q1).|
-| **Intermedias**                   | Entre Q1 y Q2.                     |
-| **Caras**                         | Mayor o igual al percentil 66 (Q2) |
+| **Categoría**   | **Rango de Precio (SalePrice)** |
+|-----------------|---------------------------------|
+| **Económicas**  | Menor o igual al percentil 33 (Q1).|
+| **Intermedias** | Entre Q1 y Q2.                     |
+| **Caras**       | Mayor o igual al percentil 66 (Q2) |
 
 ```{r}
 # Crear nueva variable categórica basada en los percentiles
@@ -623,9 +623,162 @@ Se ha creado una nueva variable Categoria que clasifica las casas en tres catego
 
 ### 7. Elabore un árbol de clasificación utilizando la variable respuesta que creó en el punto anterior.  Explique los resultados a los que llega. Muestre el modelo gráficamente. Recuerde que la nueva variable respuesta es categórica, pero se generó a partir de los precios de las casas, no incluya el precio de venta para entrenar el modelo. 
 
+```{r}
+# Cargar librerías necesarias
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(dplyr)
+library(ggplot2)
 
+# Cargar conjunto de datos
+train_set <- read.csv("train_set.csv", stringsAsFactors = TRUE)
+
+# Eliminar la columna Id si existe
+if ("Id" %in% colnames(train_set)) {
+  train_set <- train_set %>% select(-Id)
+}
+
+# Verificar que SalePrice existe
+if (!"SalePrice" %in% colnames(train_set)) {
+  stop("Error: La variable 'SalePrice' no está en el dataset.")
+}
+
+# Verificar valores faltantes en SalePrice
+if (any(is.na(train_set$SalePrice))) {
+  train_set <- train_set %>% filter(!is.na(SalePrice)) # Eliminar filas con NA en SalePrice
+}
+
+# Crear la variable `Categoria` basada en los percentiles de SalePrice
+quantiles <- quantile(train_set$SalePrice, probs = c(0.33, 0.66), na.rm = TRUE)
+
+train_set$Categoria <- cut(train_set$SalePrice,
+                           breaks = c(-Inf, quantiles[1], quantiles[2], Inf),
+                           labels = c("Económica", "Intermedia", "Cara"))
+
+# Convertir `Categoria` a factor
+train_set$Categoria <- as.factor(train_set$Categoria)
+
+# Verificar que la variable se creó correctamente
+cat("\nDistribución de la variable `Categoria`:\n")
+print(table(train_set$Categoria))
+
+# Eliminar SalePrice para no incluirlo en el modelo de clasificación
+train_set <- train_set %>% select(-SalePrice)
+
+# Dividir en conjunto de entrenamiento (70%) y prueba (30%)
+set.seed(42)
+train_index <- createDataPartition(train_set$Categoria, p = 0.7, list = FALSE)
+train_data <- train_set[train_index, ]
+test_data <- train_set[-train_index, ]
+
+# Asegurar que las clases en train y test sean representativas
+cat("\nDistribución de categorías en Train:\n")
+print(table(train_data$Categoria))
+
+cat("\nDistribución de categorías en Test:\n")
+print(table(test_data$Categoria))
+
+# Crear el modelo de árbol de clasificación
+set.seed(42)
+arbol_clasificacion <- rpart(Categoria ~ ., data = train_data, method = "class",
+                             control = rpart.control(cp = 0.02, maxdepth = 4, minsplit = 15))
+
+# Visualizar el árbol de clasificación
+rpart.plot(arbol_clasificacion, type = 3, extra = 104, fallen.leaves = TRUE, cex = 0.7, 
+           main = "Árbol de Clasificación - Categoría de Casas")
+
+# Evaluación en conjunto de prueba
+predicciones <- predict(arbol_clasificacion, newdata = test_data, type = "class")
+
+# Matriz de Confusión
+conf_matrix <- confusionMatrix(predicciones, test_data$Categoria)
+print(conf_matrix)
+
+# Precisión Global del Modelo
+cat("\nPrecisión Global del Modelo:", conf_matrix$overall["Accuracy"], "\n")
+
+# Gráfico de comparación de predicciones vs valores reales
+ggplot(data.frame(Real = test_data$Categoria, Predicho = predicciones), aes(x = Real, fill = Predicho)) +
+  geom_bar(position = "dodge", color = "black", alpha = 0.8) +
+  labs(title = "Comparación de Predicciones del Árbol de Clasificación",
+       x = "Categoría Real",
+       y = "Cantidad de Casas") +
+  theme_minimal() +
+  theme(legend.position = "top", legend.title = element_blank()) +
+  scale_fill_manual(values = c("Económica" = "#E74C3C", "Intermedia" = "#27AE60", "Cara" = "#3498DB"))
+```
+
+**Análisis y Conclusiones del Árbol de Clasificación**
+
+**7.1. Evaluación del Modelo**
+
+El modelo de árbol de clasificación construido para predecir la categoría de las casas en Económicas, Intermedias y Caras muestra un rendimiento perfecto según las métricas obtenidas:
+
+- **Precisión global (Accuracy)**: 1.0 (100%).
+
+- **Matriz de Confusión**: No hay errores de clasificación, es decir, el modelo predijo correctamente todas las instancias.
+
+- **Sensibilidad y Especificidad**: 1.0 para todas las clases, lo que indica que el modelo no comete ningún error en la predicción de cada categoría.
+
+Esto indica que el modelo ha aprendido a clasificar perfectamente los datos en entrenamiento y prueba, lo cual es inusual en problemas reales de clasificación.
+
+**7.2. Posibles Explicaciones del Desempeño Perfecto**
+
+**7.2.1. Falta de Variabilidad en los Datos**
+
+- Si las características que definen cada categoría están demasiado bien separadas en el dataset, el modelo puede aprender reglas que dividen las clases sin solapamiento.
+
+- Es posible que la variable LogSalePrice sea demasiado discriminativa, lo que hace que el modelo clasifique sin errores.
+
+**7.2.2. Sobreajuste del Modelo**
+
+- Dado que el modelo logra una clasificación perfecta tanto en el conjunto de entrenamiento como en el de prueba, podría estar memorizando los datos en lugar de generalizar.
+
+- En el mundo real, siempre hay cierta incertidumbre y ruido en los datos, lo que hace improbable obtener un 100% de precisión sin sobreajuste.
+
+**7.2.3. Los Datos de Entrenamiento y Prueba son Muy Similares**
+
+**La distribución de las categorías en los conjuntos de entrenamiento y prueba es casi idéntica**:
+
+- **Económica**: 116 en prueba, 273 en entrenamiento.
+
+- **Intermedia**: 116 en prueba, 271 en entrenamiento.
+
+- **Cara**: 117 en prueba, 276 en entrenamiento.
+
+- Esto podría sugerir que el muestreo realizado para dividir los datos no introduce suficiente variabilidad, lo que hace que el modelo vea ejemplos muy similares en ambos conjuntos.
+
+**7.2.4 Reglas de División Demasiado Simples**
+
+- El árbol de clasificación parece estar basándose en un único criterio (LogSalePrice < 12) para separar las clases, lo que indica que la división de los datos podría estar demasiado bien definida.
+
+**7.3. Revisión de los Resultados Visuales**
+
+**7.3.1. Árbol de Clasificación**:
+
+- El árbol se divide únicamente por LogSalePrice < 12, lo que significa que el modelo no está utilizando otras variables para hacer la clasificación.
+
+- Esto puede indicar que LogSalePrice es una variable dominante y suficiente para la clasificación.
+
+**7.3.2. Gráfico de Comparación de Predicciones**:
+
+- La distribución de predicciones es idéntica a la distribución real de las clases.
+
+- Esto sugiere que el modelo no tiene errores de clasificación.
+
+**7.4. Conclusión Final**
+
+- El modelo tiene una precisión del 100%, lo cual es raro en problemas reales de clasificación.
+
+- Es probable que LogSalePrice sea una variable demasiado dominante, haciendo que el árbol no utilice otras características.
+
+- Se recomienda probar validación cruzada, agregar más variables y verificar si el modelo realmente generaliza en datos nuevos.
+
+- A pesar del alto rendimiento, puede haber sobreajuste, lo que significa que en datos completamente nuevos el modelo podría no ser tan preciso.
 
 ### 8. Utilice el modelo con el conjunto de prueba y determine la eficiencia del algoritmo para clasificar. 
+
 
 
 ### 9. Haga un análisis de la eficiencia del algoritmo usando una matriz de confusión para el árbol de clasificación. Tenga en cuenta la efectividad, donde el algoritmo se equivocó más, donde se equivocó menos y la importancia que tienen los errores. 
