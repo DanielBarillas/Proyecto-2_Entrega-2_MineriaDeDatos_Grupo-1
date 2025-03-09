@@ -779,7 +779,7 @@ Esto indica que el modelo ha aprendido a clasificar perfectamente los datos en e
 
 ### 8. Utilice el modelo con el conjunto de prueba y determine la eficiencia del algoritmo para clasificar. 
 
-
+ 
 
 ### 9. Haga un análisis de la eficiencia del algoritmo usando una matriz de confusión para el árbol de clasificación. Tenga en cuenta la efectividad, donde el algoritmo se equivocó más, donde se equivocó menos y la importancia que tienen los errores. 
 
