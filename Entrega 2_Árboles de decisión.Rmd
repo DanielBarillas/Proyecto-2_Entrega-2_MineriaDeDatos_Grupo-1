@@ -22,12 +22,12 @@ repository: "https://github.com/DanielBarillas/Proyecto-2_Entrega-2_MineriaDeDat
 Para este punto, ya se ha realizado el proceso para descargar del sitio web: [House Prices - Advanced Regression Techniques](https://kaggle.com/competitions/house-prices-advanced-regression-techniques), la data de entrenamiento y la data de prueba, ambos extraídos desde la carpeta "house_prices_data/" en data frames llamados train_data (data de entrenamiento) y test_data (data de prueba), sin convertir automáticamente las variables categóricas en factores (stringsAsFactors = FALSE). Luego, se realiza una inspección inicial de train_data mediante tres funciones: head(train_data), que muestra las primeras filas del dataset; str(train_data), que despliega la estructura del data frame, incluyendo el tipo de cada variable; y summary(train_data), que proporciona un resumen estadístico de las variables numéricas y una descripción general de las categóricas.
 
 ```{r}
-train_data <- read.csv("house_prices_data/train.csv", stringsAsFactors = FALSE)
-test_data <- read.csv("house_prices_data/test.csv", stringsAsFactors = FALSE)
-
-head(train_data)   # Muestra las primeras filas
-str(train_data)    # Muestra la estructura del dataset
-summary(train_data) # Resumen estadístico
+  train_data <- read.csv("house_prices_data/train.csv", stringsAsFactors = FALSE)
+  test_data <- read.csv("house_prices_data/test.csv", stringsAsFactors = FALSE)
+  
+  head(train_data)   # Muestra las primeras filas
+  str(train_data)    # Muestra la estructura del dataset
+  summary(train_data) # Resumen estadístico
 ```
 ### 1. Use los mismos conjuntos de entrenamiento y prueba que usó para los modelos de regresión lineal en la entrega anterior. 
 
@@ -893,11 +893,176 @@ table(train_set$Categoria)
 # Eliminar columnas con valores NA en el conjunto de datos
 train_set_clean <- train_set[, colSums(is.na(train_set)) == 0]
 
+test_data_clean <- test_data[, colSums(is.na(test_data)) == 0]
+
 # Entrenar el modelo con el conjunto de datos limpio
 m1 <- randomForest(
   formula = Categoria ~ .,
   data    = train_set_clean
 )
 m1
+plot(m1)
 ```
+
+
+#### Analisis del arbol de random forest
+
+
+**12.1 Error del arbol**
+Podemos ver que este arbol se equivoca igual en intermedia, de hecho el error vemos que es de 23% lo que simboliza un error bastante alto y un poco parecido al que tenemos con el arbol de clasificacion comun. Lo que vamos antes de proceder la comparacion es tunear los parametros del random forest, para ver cual es mejor. 
+
+**12.2 Analisis de grafica**
+En la grafica tenemos las 3 clases y vemos que aproximadamente en 100 arboles su error no disminuye mas y el resto de arboles solo siguen la tendencia sin cambiar mucho. 
+
+#### Tuneo del Modelo
+
+Vamos a tunear 
+
+**12.2 Numero variables aleatorias seleccionadas en cada arbol**
+```{r}
+features <- setdiff(names(train_set_clean), "Categoria")
+
+set.seed(123)
+
+m2 <- tuneRF(
+  x          = train_set_clean[features], 
+  y          = train_set_clean$Categoria, 
+  ntreeTry   = 500, # arboles
+  mtryStart  = 5, #numero de variables seleccionadas aleatoriamente
+  stepFactor = 1.5, #
+  improve    = 0.01,
+  trace      = FALSE      # to not show real-time progress 
+)
+
+
+```
+Vemos que el que tiene menor error es de 4 variables aleatorias elegidas. 
+
+
+
+**12.3 La cantidad de arboles **
+
+Esto ya lo habiamos hecho antes pero vamos a hacerlo otravez
+
+
+```{r}
+# Cargar librería
+library(randomForest)
+
+
+set.seed(123)
+num_arboles <- seq(10, 500, by = 10)
+
+
+errores_oob <- numeric(length(num_arboles))
+
+
+for (i in seq_along(num_arboles)) {
+  modelo <- randomForest(
+    formula = Categoria ~ .,
+    data    = train_set_clean,
+    ntree   = num_arboles[i]
+  )
+  errores_oob[i] <- modelo$err.rate[num_arboles[i], 1]
+}
+
+
+plot(num_arboles, errores_oob, type = "b", pch = 19, col = "blue",
+     xlab = "Número de Árboles", ylab = "Error OOB",
+     main = "Optimización del Número de Árboles en Random Forest")
+
+
+min_error_idx <- which.min(errores_oob)
+points(num_arboles[min_error_idx], errores_oob[min_error_idx], col = "red", pch = 19)
+text(num_arboles[min_error_idx], errores_oob[min_error_idx], 
+     labels = paste("Óptimo:", num_arboles[min_error_idx]), pos = 3, col = "red")
+
+```
+
+
+Podemos ver que el numero de arboles optimo es de 480 arboles, por lo que usaremos este arbol para poder entrenar nuestro modelo. 
+
+
+
+
+
+
+#### Comparacion ambos algoritmos
+
+Para esto predecimos en nuestro modelo de random forest y calculamos el f1score. 
+
+```{r}
+
+library(randomForest)
+library(caret)
+
+
+m1 <- randomForest(
+  Categoria ~ .,      # Fórmula
+  data    = train_set_clean,  # Datos de entrenamiento
+  ntree   = 7,      # Número de árboles
+  mtry    = 4         # Número de variables seleccionadas aleatoriamente
+)
+
+
+prediccionesrf <- predict(m1, test_data_clean)
+
+
+conf_matrixrf <- confusionMatrix(prediccionesrf, test_data_clean$Categoria)
+
+
+accuracyrf <- conf_matrixrf$overall["Accuracy"]
+
+
+precision <- conf_matrixrf$byClass[, "Pos Pred Value"]
+recall <- conf_matrixrf$byClass[, "Sensitivity"]
+
+
+f1_scorerf <- 2 * ((precision * recall) / (precision + recall))
+
+
+cat("\nAccuracy del modelo:", accuracyrf, "\n")
+cat("\nF1-Score por clase:", f1_scorerf, "\n")
+
+
+
+
+
+```
+Aqui tuve que bajarle a los hiperparametros como lo es el numero de arboles generados para generar una prediccion lo suficientemente no sobreajustada. Aqui vemos que nuestro modelo mejoro muchisimo a tener un acurrancy de 0.98 y un F1 score de 
+
+#### Comparacion Random Fores y Arbol de Clasificacion
+
+```{r}
+clases <- c("Económicas", "Intermedias", "Caras")
+
+
+f1_scores_df <- data.frame(
+  Clase = rep(clases, 2),
+  F1_Score = c(f1_scorerf, f1_score),
+  Modelo = rep(c("Random Forest", "Árbol de Clasificación"), each = 3)
+)
+
+# Graficar los F1-Scores
+ggplot(f1_scores_df, aes(x = Clase, y = F1_Score, fill = Modelo)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Comparación de F1-Score entre Random Forest y Árbol de Clasificación",
+    y = "F1-Score",
+    x = "Clase"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("skyblue", "lightgreen"))
+```
+Aqui podemos ver que nuestro mejor arbol fue el de random forest, Siendo el que tiene casi un 1 en f1 score mientras que el arbol de clasificacion esta entre 0.69 y 0.75. En ambos modelos se ve que el caras siempre va a predecir mejor , y el de intermedias lo va a calcular peor, aun asi en el modelo del random forest con los hipermarametros de variables 4 y numeros de arboles 7, se desempeño mucho mejor que el de clasificacion normal, lo que indica que nuestro modelo es bastante competente a comparacion de este ultimo. 
+
+Pero en retrospectiva seria mejor bajar algunos parametros del random forest ya que si bien tiene un buen f1 score tiende al sobreajuste, y mejorar algunos del de clasificacion, ya que tienden al subajuste.
+
+## Conclusion
+
+
+En conclusion nuestro mejor modelo fue el de random forest, muy posiblemente debido a que esta haciendo una seleccion aleatoria de variables y multiples veces a diferencia del de clasificacion comun que solo lo hace 1 vez, y ademas no es necesario modificar la profunidad de este ultimo, sin embargo vemos que el de clasificacion es mucho mas descriptivo y nos deja inferir cosas que el precio de la casa se ajusta al valor de su propiedad, vecindario, tamaño y el garage que tiene  . 
+
+En relacion a otros modelos como el de regresion vemos que ha mejorado con respecto al inicial de regresion tradicional pero sigue teniendo problemas para determinar bien el precio de las casas, por lo que es recomendable realizar otro enfoque en como se estan pasando los valores de estas o usar mayor profundidad.
+
 
