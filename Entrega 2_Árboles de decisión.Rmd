@@ -757,27 +757,24 @@ Esta grafica muestra como se estan haciendo las predicciones, es lo mismo que la
 
 ### 10. Entrene un modelo usando validación cruzada, prediga con él. ¿le fue mejor que al modelo anterior? 
 
+
+
 ```{r}
 
-
-control_cv <- trainControl(method = "cv", number = 5)  
+levels(test_data$MSZoning) <- levels(train_set$MSZoning)
+control_cv <- trainControl(method = "cv", number = 10)  
 
 set.seed(42)
 arbol_cv <- train(Categoria ~ ., 
-                  data = train_set, 
-                  method = "rpart", 
-                  trControl = control_cv, 
-                  tuneGrid = data.frame(cp = 0.02),
-                  na.action = na.pass)
+                   data = train_data, 
+                   method = "rpart", 
+                   trControl = control_cv, 
+                   na.action = na.pass)
 
+#arbol_clasificacion <- rpart(Categoria ~ ., data = train_data, method = "class",
+#                             control = rpart.control(cp = 0.02, maxdepth = 8, minsplit = 15))
 
 print(arbol_cv)
-
-
-
-# Obtener las predicciones
-predicciones <- predict(arbol_cv, newdata = test_data, type = "raw")
-
 
 modelo_final <- arbol_cv$finalModel
 
@@ -786,20 +783,121 @@ rpart.plot(modelo_final, type = 3, extra = 104, fallen.leaves = TRUE, cex = 0.7,
            main = "Árbol de Clasificación con CV - Categoría de Casas")
 
 
-conf_matrix <- confusionMatrix(predicciones, test_data$Categoria)
-
-# Obtener y mostrar la precisión (accuracy)
-accuracy_test <- conf_matrix$overall["Accuracy"]
-cat("\nPrecisión en el Conjunto de Prueba:", accuracy_test, "\n")
 ```
+
 #### Analisis del Arbol
 
 **10.1 Analisis del Arbol generado**
 
+Podemos ver que al hacer validación cruzada realmente no ha mejorado, de hecho, podemos ver que lo empeoró un poco ya que la accuracy ahora es de 0.66, lo cual nos indica que el modelo está haciéndose underfitting. Esto significa que el modelo no está capturando adecuadamente la complejidad de los datos de entrenamiento, lo que se traduce en un rendimiento subóptimo tanto en el conjunto de entrenamiento como en los datos no vistos (test).
+
+El underfitting ocurre cuando el modelo es demasiado simple para aprender patrones, esto porque el modelo es muy simple, y talvez faltan variables para poder usar. Lo que se recomendaria talvez es entrenar al modelo con una mayor cantidad de datos o disminuir los subconjuntos. 
+
+
+
 ### 11. Haga al menos, 3 modelos más, cambiando la profundidad del árbol. ¿Cuál funcionó mejor? 
+
+
+```{r}
+library(caret)
+library(rpart)
+
+
+profundidades <- data.frame(maxdepth = c(2,3, 5))
+
+
+resultados <- data.frame(maxdepth = numeric(), accuracy = numeric())
+
+
+for(i in 1:nrow(profundidades)) {
+
+  modelo <- rpart(Categoria ~ ., 
+                  data = train_data, 
+                  method = "class", 
+                  control = rpart.control(cp = 0.02, 
+                                          maxdepth = profundidades$maxdepth[i], 
+                                          minsplit = 15))
+  
+
+  predicciones <- predict(modelo, newdata = test_data, type = "class")
+  
+
+  cm <- confusionMatrix(predicciones, test_data$Categoria)
+  accuracy <- cm$overall["Accuracy"]
+  
+  # Almacenar el resultado
+  resultados <- rbind(resultados, data.frame(maxdepth = profundidades$maxdepth[i], accuracy = accuracy))
+}
+
+
+print(resultados)
+
+
+library(ggplot2)
+ggplot(resultados, aes(x = maxdepth, y = accuracy)) +
+  geom_line() +
+  geom_point() +
+  labs(title = "Profundidad vs Accuracy",
+       x = "Profundidad (maxdepth)",
+       y = "Precisión (Accuracy)") +
+  theme_minimal()
+
+```
+
+
+#### Analisis
+
+**11.1 Analisis de Profundidad y Acurrancy**
+
+Podemos ver que la profundidad aumento un poco en 3 y ha ido disminuyendo en cada iteracion hasta 5, en 2 esta bastante por debajo de lo que puede llegar a ser 3. 
+
+Por lo tanto usaremos 3 como el hiperparametro de nuestra profundidad, esto porque ha resultado mucho mejor que el uso de 2 o de 5, lo cual nos indica que con 2 esta con poco ajuste y con 5 que el modelo se volvio tan especifico que no es generalizable. 
+
 
 
 
 ### 12. Repita los análisis usando random forest como algoritmo de predicción, explique sus resultados comparando ambos algoritmos.  
 
+
+Para esto lo primero que vamos a hacer es la importancion de libreria
+
+```{r} 
+
+paquetes <- c("rsample", "randomForest", "ranger", "caret")
+
+
+for(paquete in paquetes) {
+  if(!require(paquete, character.only = TRUE)) {
+    cat(paste("El paquete", paquete, "no está instalado. Instalando...\n"))
+    install.packages(paquete)
+    library(paquete, character.only = TRUE)
+  } else {
+    cat(paste("El paquete", paquete, "ya está instalado y cargado.\n"))
+  }
+}
+
+```
+```{r}
+# Verificar las clases de la variable 'Categoria'
+table(train_set$Categoria)
+
+
+```
+
+
+```{r}
+
+
+
+
+# Eliminar columnas con valores NA en el conjunto de datos
+train_set_clean <- train_set[, colSums(is.na(train_set)) == 0]
+
+# Entrenar el modelo con el conjunto de datos limpio
+m1 <- randomForest(
+  formula = Categoria ~ .,
+  data    = train_set_clean
+)
+m1
+```
 
