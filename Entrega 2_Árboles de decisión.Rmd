@@ -59,6 +59,8 @@ summary(test_set)
 str(train_set)
 str(test_set)
 ```
+
+
 ### 2. Elabore un árbol de regresión para predecir el precio de las casas usando todas las variables.
 
 ```{r}
@@ -116,6 +118,9 @@ ggplot(data.frame(Real = test_data$SalePrice, Predicho = predicciones_test), aes
        y = "Precio Predicho") +
   theme_minimal()
 ```
+
+
+
 **Análisis del Árbol de Regresión y Resultados**
 
 **2.1. Interpretación del Árbol de Regresión**
@@ -264,6 +269,8 @@ ggplot(data.frame(Real = test_data$SalePrice, Predicho = predicciones_test), aes
        y = "Precio Predicho") +
   theme_minimal()
 ```
+
+
 **Análisis y Evaluación del Modelo de Árbol de Regresión**
 
 **3.1.Evaluación del Desempeño con el Error Cuadrático Medio (MSE)**
@@ -384,6 +391,9 @@ ggplot(mse_values, aes(x = Modelo, y = MSE)) +
        y = "Error Cuadrático Medio (MSE)") +
   theme_minimal()
 ```
+
+
+
 **Análisis de los Modelos con Diferente Profundidad**
 
 A partir de los resultados obtenidos en la comparación de los modelos con distintas profundidades, podemos extraer las siguientes conclusiones:
@@ -562,6 +572,8 @@ ggplot(train_set, aes(x = SalePrice)) +
 
 ```
 
+
+
 **Cálculo de Percentiles**
 
 Para definir los límites de cada categoría, utilizamos los percentiles de la distribución:
@@ -572,6 +584,8 @@ Para definir los límites de cada categoría, utilizamos los percentiles de la d
 quantiles <- quantile(train_set$SalePrice, probs = c(0.33, 0.66))
 quantiles
 ```
+
+
 Esto nos devuelve dos valores:
 
 - 33% Percentil (Q1) → Representa el umbral entre casas económicas e intermedias.
@@ -598,6 +612,9 @@ train_set$Categoria <- cut(train_set$SalePrice,
 # Ver distribución de la nueva variable
 table(train_set$Categoria)
 ```
+
+
+
 **6.3. Visualización de la Nueva Clasificación**
 
 Podemos visualizar cómo se agrupan las casas en cada categoría:
@@ -611,6 +628,9 @@ ggplot(train_set, aes(x = Categoria, y = SalePrice, fill = Categoria)) +
        y = "Precio de Venta (USD)") +
   theme_minimal()
 ```
+
+
+
 
 **6.4. Explicación del Fundamento de los Límites**
 
@@ -662,9 +682,13 @@ rpart.plot(arbol_clasificacion, type = 3, extra = 104, fallen.leaves = TRUE, cex
            main = "Árbol de Clasificación - Categoría de Casas")
 
 ```
+
+
+
+
 #### Analisis del Arbol
 
-**7.1 Analisis del Grafico**
+**7.1. Analisis del Grafico**
 
 Podemos notar ciertas cosas del arbol lo primero es que la variable mas significativa para el algoritmo fue OverallQual y determino que aquellos menor a 7 seran intermedios , economicos y mayores a este numero caros. Esto porque concluyo que el precio de las casas esta regido por la calidad del acabado que esta tiene .  
 
@@ -673,13 +697,13 @@ Luego se guio por cuantos carros pueden estar en el garage determio que si llega
 Para decidir el precio de las casas entre intermedia y cara solo usa el GrliveArea que si tiene uno por debajo de 1478 no sera cara.
 
 
-**7.2 Analisis de variables y de su significado**
+**7.2. Analisis de variables y de su significado**
 
 Como podemos ver nuestro modelo toma 4 variables importantes, el vecindario, el area habitable sobre el suelo, cuantos carros caben en un garage , y la calidad del acabado. Esto nos indica que las casas mas caras siempre van a ser las que tienen mejores acabados y decoraciones, tambien que las casas mas caras seran las que tienen mayor espacio habitable , en pocas palabras las que sean mas grandes y que tengan mas habitaciones.
 
 En cambio para determinar si una casa tiene un valor intermedio  o economico se guiara de cuantos carros pueden tener , y el tipo de garage asi como el vecindario en donde este. Es sabido que las casas en mejores vecindarios o donde esten mejor ubicadas tendran a ser mas caras.
 
-**7.3 Conclusion**
+**7.3. Conclusion**
 Este modelo no solo ayuda a predecir el precio de las casas, sino que también proporciona una visión clara sobre los factores que realmente influyen en la clasificación de las propiedades, lo que podría ser útil para mejorar la toma de decisiones en el ámbito inmobiliario.
 
 
@@ -691,15 +715,18 @@ Este modelo no solo ayuda a predecir el precio de las casas, sino que también p
 # Evaluación en conjunto de prueba
 
 predicciones <- predict(arbol_clasificacion, newdata = test_data, type = "class")
+conf_matrix <- confusionMatrix(predicciones, test_data$Categoria)
 
 # Precisión Global del Modelo
 cat("\nPrecisión Global del Modelo:", conf_matrix$overall["Accuracy"], "\n")
 
 ```
 
+
+
 #### Analisis de Eficiencia
 
-**8.1 Acurrancy**
+**8.1. Acurrancy**
 
 Vemos que el acurrancy del modelo es de 0.74 esto quiere decir que en relacion a los datos de prueba el modelo predice el 74% de estos. Es bueno usar acurrancy porque nos da una metrica sencilla para entender como funciona nuestro modelo , pero es mala en datos balanceados y no llega a ser tan precisa como otras. 
 
@@ -710,6 +737,8 @@ f1_score <- 2 * ((precision * recall) / (precision + recall))
 
 cat("\nF1-Score por clase:", f1_score, "\n")
 ```
+
+
 
 
 Aqui podemos ver el f1 score pero por calses , osea por economica que es 0.79 , 0.62 para intermedia y 0.80 para caras. Es mucho mejor el uso de f1 score para poder determinar que tan bien predice y que tanto se equivoca, lo que podemos ver es que se llega a confundir mucho nuestro modelo en determinar si una clase es intermedia. Lo que nos indica que debemos mejorar esto, se puede hacer haciendo mas profundo el arbol o moviendo nuestros percentiles para poder dar un margen mas amplio de lo que es una casa  de precio intermedio. 
@@ -742,7 +771,9 @@ ggplot(data.frame(Real = test_data$Categoria, Predicho = predicciones), aes(x = 
 
 
 
-**9.1 Matriz de Confusion**
+
+
+**9.1. Matriz de Confusion**
 
 Recapitulando lo que vimos en eficiencia con f1 score es que le esta costando a nuestro modelo el poder determinar que casa es intermedia , aqui podemos ver en la matriz de confusion que si es asi ya que de las veces que es Intermedia solo predice 92 y el resto eran de otro tipo, asi que podemos ver que es a la que peor le va en este aspecto , de hecho se puede notar que se confunde mucho mas en si es cara o intermedia que si es economica o intermedia. 
 
@@ -750,7 +781,7 @@ Esto quiere decir que nuestro GrivlArea no es de hecho tan buen predictor, lo re
 
 Viendo las estadisticas generadas por la matriz de confusion podemos ver que las predicciones negativas en las 3 estan bastante bien, pero no en las positivas, de hecho aqui confirma lo que esta detectando mal la de intermedio. 
 
-**9.2 Matriz de Confusion Grafica**
+**9.2. Matriz de Confusion Grafica**
 
 Esta grafica muestra como se estan haciendo las predicciones, es lo mismo que la matriz de confusion, y vemos que la que esta peor haciendo la prediccion es de intermedia, y la que mejor lo hace es de economica, muy posiblemente ya que tenemos mas variables categoricas que determinan esta ultima, aunque la de Cara tambien esta muy bien, pero seguimos viendo el problema de que Intermedia no esta haciendo tan buena prediccion como se quisiera . 
 
@@ -785,9 +816,12 @@ rpart.plot(modelo_final, type = 3, extra = 104, fallen.leaves = TRUE, cex = 0.7,
 
 ```
 
+
+
+
 #### Analisis del Arbol
 
-**10.1 Analisis del Arbol generado**
+**10.1. Analisis del Arbol generado**
 
 Podemos ver que al hacer validación cruzada realmente no ha mejorado, de hecho, podemos ver que lo empeoró un poco ya que la accuracy ahora es de 0.66, lo cual nos indica que el modelo está haciéndose underfitting. Esto significa que el modelo no está capturando adecuadamente la complejidad de los datos de entrenamiento, lo que se traduce en un rendimiento subóptimo tanto en el conjunto de entrenamiento como en los datos no vistos (test).
 
@@ -845,9 +879,11 @@ ggplot(resultados, aes(x = maxdepth, y = accuracy)) +
 ```
 
 
+
+
 #### Analisis
 
-**11.1 Analisis de Profundidad y Acurrancy**
+**11.1. Analisis de Profundidad y Acurrancy**
 
 Podemos ver que la profundidad aumento un poco en 3 y ha ido disminuyendo en cada iteracion hasta 5, en 2 esta bastante por debajo de lo que puede llegar a ser 3. 
 
@@ -905,20 +941,22 @@ plot(m1)
 ```
 
 
+
+
 #### Analisis del arbol de random forest
 
 
-**12.1 Error del arbol**
+**12.1. Error del arbol**
 Podemos ver que este arbol se equivoca igual en intermedia, de hecho el error vemos que es de 23% lo que simboliza un error bastante alto y un poco parecido al que tenemos con el arbol de clasificacion comun. Lo que vamos antes de proceder la comparacion es tunear los parametros del random forest, para ver cual es mejor. 
 
-**12.2 Analisis de grafica**
+**12.2. Analisis de grafica**
 En la grafica tenemos las 3 clases y vemos que aproximadamente en 100 arboles su error no disminuye mas y el resto de arboles solo siguen la tendencia sin cambiar mucho. 
 
 #### Tuneo del Modelo
 
 Vamos a tunear 
 
-**12.2 Numero variables aleatorias seleccionadas en cada arbol**
+**12.2. Numero variables aleatorias seleccionadas en cada arbol**
 ```{r}
 features <- setdiff(names(train_set_clean), "Categoria")
 
@@ -980,6 +1018,7 @@ text(num_arboles[min_error_idx], errores_oob[min_error_idx],
 ```
 
 
+
 Podemos ver que el numero de arboles optimo es de 480 arboles, por lo que usaremos este arbol para poder entrenar nuestro modelo. 
 
 
@@ -1029,6 +1068,9 @@ cat("\nF1-Score por clase:", f1_scorerf, "\n")
 
 
 ```
+
+
+
 Aqui tuve que bajarle a los hiperparametros como lo es el numero de arboles generados para generar una prediccion lo suficientemente no sobreajustada. Aqui vemos que nuestro modelo mejoro muchisimo a tener un acurrancy de 0.98 y un F1 score de 
 
 #### Comparacion Random Fores y Arbol de Clasificacion
@@ -1054,6 +1096,11 @@ ggplot(f1_scores_df, aes(x = Clase, y = F1_Score, fill = Modelo)) +
   theme_minimal() +
   scale_fill_manual(values = c("skyblue", "lightgreen"))
 ```
+
+
+
+
+
 Aqui podemos ver que nuestro mejor arbol fue el de random forest, Siendo el que tiene casi un 1 en f1 score mientras que el arbol de clasificacion esta entre 0.69 y 0.75. En ambos modelos se ve que el caras siempre va a predecir mejor , y el de intermedias lo va a calcular peor, aun asi en el modelo del random forest con los hipermarametros de variables 4 y numeros de arboles 7, se desempeño mucho mejor que el de clasificacion normal, lo que indica que nuestro modelo es bastante competente a comparacion de este ultimo. 
 
 Pero en retrospectiva seria mejor bajar algunos parametros del random forest ya que si bien tiene un buen f1 score tiende al sobreajuste, y mejorar algunos del de clasificacion, ya que tienden al subajuste.
