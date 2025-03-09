@@ -590,6 +590,7 @@ Utilizando los percentiles obtenidos, definimos los rangos de clasificación de 
 
 ```{r}
 # Crear nueva variable categórica basada en los percentiles
+
 train_set$Categoria <- cut(train_set$SalePrice,
                            breaks = c(-Inf, quantiles[1], quantiles[2], Inf),
                            labels = c("Económica", "Intermedia", "Cara"))
@@ -739,6 +740,8 @@ ggplot(data.frame(Real = test_data$Categoria, Predicho = predicciones), aes(x = 
 ```
 
 
+
+
 **9.1 Matriz de Confusion**
 
 Recapitulando lo que vimos en eficiencia con f1 score es que le esta costando a nuestro modelo el poder determinar que casa es intermedia , aqui podemos ver en la matriz de confusion que si es asi ya que de las veces que es Intermedia solo predice 92 y el resto eran de otro tipo, asi que podemos ver que es a la que peor le va en este aspecto , de hecho se puede notar que se confunde mucho mas en si es cara o intermedia que si es economica o intermedia. 
@@ -754,8 +757,44 @@ Esta grafica muestra como se estan haciendo las predicciones, es lo mismo que la
 
 ### 10. Entrene un modelo usando validación cruzada, prediga con él. ¿le fue mejor que al modelo anterior? 
 
+```{r}
 
 
+control_cv <- trainControl(method = "cv", number = 5)  
+
+set.seed(42)
+arbol_cv <- train(Categoria ~ ., 
+                  data = train_set, 
+                  method = "rpart", 
+                  trControl = control_cv, 
+                  tuneGrid = data.frame(cp = 0.02),
+                  na.action = na.pass)
+
+
+print(arbol_cv)
+
+
+
+# Obtener las predicciones
+predicciones <- predict(arbol_cv, newdata = test_data, type = "raw")
+
+
+modelo_final <- arbol_cv$finalModel
+
+# Visualizar el árbol de clasificación
+rpart.plot(modelo_final, type = 3, extra = 104, fallen.leaves = TRUE, cex = 0.7, 
+           main = "Árbol de Clasificación con CV - Categoría de Casas")
+
+
+conf_matrix <- confusionMatrix(predicciones, test_data$Categoria)
+
+# Obtener y mostrar la precisión (accuracy)
+accuracy_test <- conf_matrix$overall["Accuracy"]
+cat("\nPrecisión en el Conjunto de Prueba:", accuracy_test, "\n")
+```
+#### Analisis del Arbol
+
+**10.1 Analisis del Arbol generado**
 
 ### 11. Haga al menos, 3 modelos más, cambiando la profundidad del árbol. ¿Cuál funcionó mejor? 
 
